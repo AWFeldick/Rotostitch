@@ -40,7 +40,7 @@ class Application(tkinter.Tk):
         menuBar.add_cascade(label="About", menu=aboutMenu)
 
         # Window Setup
-        self.title("RotaStitch")
+        self.title("Rotostitch")
         self.config(menu=menuBar)
         self.iconbitmap(default=os.path.join(RESOURCE_DIR, "rotostitch-icon.ico"))
 
