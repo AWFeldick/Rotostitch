@@ -8,10 +8,7 @@ from tkinter import filedialog, messagebox
 
 from PIL import Image, ImageChops
 
-try:
-    from . import RESOURCE_DIR
-except:
-    pass
+from rotostitch import RESOURCE_DIR, __version__
 from rotostitch.sequence import FrameSequence
 from rotostitch.statusbar import StatusBar
 from rotostitch.togglebutton import ToggleButton
@@ -47,14 +44,14 @@ class Application(tkinter.Tk):
         fileMenu.add_command(label="Exit", command=self.destroy)
 
         aboutMenu = Menu(menuBar, tearoff=False)
-        aboutMenu.add_command(label="Help")
-        aboutMenu.add_command(label="About...")
+        aboutMenu.add_command(label="Help", command=self.showHelp)
+        aboutMenu.add_command(label="About...", command=self.showAbout)
 
         menuBar.add_cascade(label="File", menu=fileMenu)
         menuBar.add_cascade(label="About", menu=aboutMenu)
 
         # Window Setup
-        self.title("Rotostitch")
+        self.title("Rotostitch " + __version__)
         self.config(menu=menuBar)
         self.iconbitmap(default=os.path.join(RESOURCE_DIR, "rotostitch-icon.ico"))
 
@@ -192,6 +189,12 @@ class Application(tkinter.Tk):
         self.width = {'start': Coord(), 'end': Coord()}
         self.height = {'start1': Coord(), 'end1': Coord(), 'start2': Coord(), 'end2': Coord()}
 
+    def showAbout(self):
+        pass
+
+    def showHelp(self):
+        pass
+
     def loadSequence(self):
         path = filedialog.askopenfilename(title="Select image from image sequence...")
         if path and os.path.isfile(path):
@@ -287,9 +290,9 @@ class Application(tkinter.Tk):
         if w == self.previewStart or w == self.previewEnd:
             center = (event.x_root - w.winfo_rootx(), event.y_root - w.winfo_rooty())
             if event.delta < 0:
-                self.adjustZoom("in", center)
-            else:
                 self.adjustZoom("out", center)
+            else:
+                self.adjustZoom("in", center)
 
     def previewsZoomIn(self):
         self.adjustZoom("in")
@@ -459,5 +462,6 @@ class Application(tkinter.Tk):
 
 if __name__ == '__main__':
     RESOURCE_DIR = "resources"
+    __version__ = ""
     app = Application()
     app.mainloop()
