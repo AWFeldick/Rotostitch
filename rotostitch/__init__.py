@@ -1,6 +1,9 @@
 import os
+import sys
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
-packageDir, __ = os.path.split(__file__)
-RESOURCE_DIR = os.path.join(packageDir, "resources")
+packageDir = os.path.dirname(__file__)
+RESOURCE_DIR = os.path.join(os.path.abspath(packageDir), "resources")
+if not os.path.isdir(RESOURCE_DIR):
+    RESOURCE_DIR = os.path.join(os.path.dirname(sys.argv[0]), "resources")

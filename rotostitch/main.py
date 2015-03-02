@@ -8,15 +8,26 @@ from tkinter import filedialog, messagebox
 
 from PIL import Image, ImageChops
 
-try:
-    from . import RESOURCE_DIR
-except:
-    pass
+from rotostitch import RESOURCE_DIR, __version__
 from rotostitch.sequence import FrameSequence
 from rotostitch.statusbar import StatusBar
 from rotostitch.togglebutton import ToggleButton
 from rotostitch.zoomimage import ZoomImage
 from rotostitch.spinbox import Spinbox
+
+
+class Coord():
+    """ Helper class defining the 2D coordinate (x, y)."""
+    def __init__(self, x=0, y=0):
+        self.x = 0
+        self.y = 0
+
+    def set(self, x, y):
+        self.x = x
+        self.y = y
+
+    def get(self):
+        return (self.x, self.y)
 
 
 class Application(tkinter.Tk):
@@ -33,14 +44,14 @@ class Application(tkinter.Tk):
         fileMenu.add_command(label="Exit", command=self.destroy)
 
         aboutMenu = Menu(menuBar, tearoff=False)
-        aboutMenu.add_command(label="Help")
-        aboutMenu.add_command(label="About...")
+        aboutMenu.add_command(label="Help", command=self.showHelp)
+        aboutMenu.add_command(label="About...", command=self.showAbout)
 
         menuBar.add_cascade(label="File", menu=fileMenu)
         menuBar.add_cascade(label="About", menu=aboutMenu)
 
         # Window Setup
-        self.title("RotaStitch")
+        self.title("Rotostitch " + __version__)
         self.config(menu=menuBar)
         self.iconbitmap(default=os.path.join(RESOURCE_DIR, "rotostitch-icon.ico"))
 
@@ -67,14 +78,19 @@ class Application(tkinter.Tk):
         create = Button(masterFrame, text="Create", command=self.merge)
         create.pack(anchor='se', pady=2)
 
-        self.previewStart = ZoomImage(imgFrame, width=200, height=200, borderwidth=2, relief=Tkc.RIDGE)
+        self.previewStart = ZoomImage(imgFrame,
+                                      width=200,
+                                      height=200,
+                                      borderwidth=2,
+                                      relief=Tkc.RIDGE,
+                                      cursor="crosshair")
         self.previewStart.grid(row=0, column=0, sticky=Tkc.NSEW)
         self.previewEnd = ZoomImage(imgFrame, width=200, height=200, borderwidth=2, relief=Tkc.RIDGE)
         self.previewEnd.grid(row=0, column=2, sticky=Tkc.NSEW)
 
-        self.previewStart.bind("<Button>", self.setWidth)
-        self.previewStart.bind("<<Dragged>>", self.previewDragged)
-        self.previewEnd.bind("<<Dragged>>", self.previewDragged)
+        self.previewStart.bind("<Button>", self._startPreviewClicked)
+        self.previewStart.bind("<<Dragged>>", self._previewDragged)
+        self.previewEnd.bind("<<Dragged>>", self._previewDragged)
 
         # Binding just the previews to the MouseWheel event should work but doesn't.
         # The workaround is to bind everything to the mousewheel event 
@@ -118,10 +134,28 @@ class Application(tkinter.Tk):
         self.endSpin.pack()
         self.endSpin.changedCallback = self.updateEndPreview
 
+        widthHeightFrame = Frame(settingsFrame)
+        widthHeightFrame.grid(row=0, column=1, columnspan=2, sticky=Tkc.E+Tkc.W)
+
         widthLabel = Label(settingsFrame, text="Width:")
         widthLabel.grid(row=0, column=0, sticky=Tkc.W)
-        self.widthSpin = Spinbox(settingsFrame)
-        self.widthSpin.grid(row=0, column=1, sticky=Tkc.W)
+        self.activePic = PhotoImage(file=os.path.join(RESOURCE_DIR, "go.gif"))
+        self.widthSetButton = Button(widthHeightFrame,
+                                     text="Set",
+                                     command=self.activateSetWidth,
+                                     image=self.activePic,
+                                     compound=Tkc.LEFT)
+        self.widthSetButton.grid(row=0, column=1, sticky=Tkc.W)
+
+        heightLabel = Label(widthHeightFrame, text="Height:")
+        heightLabel.grid(row=0, column=2, padx=10, sticky=Tkc.E)
+        self.unactivePic = PhotoImage(file=os.path.join(RESOURCE_DIR, "stop.gif"))
+        self.heightSetButton = Button(widthHeightFrame,
+                                      text="Set",
+                                      command=self.activateSetHeight,
+                                      image=self.unactivePic,
+                                      compound=Tkc.LEFT)
+        self.heightSetButton.grid(row=0, column=3, sticky=Tkc.W)
 
         rotationLabel = Label(settingsFrame, text="Rotation:")
         rotationLabel.grid(row=1, column=0, sticky=Tkc.W)
@@ -150,8 +184,16 @@ class Application(tkinter.Tk):
         self.endImage = None
         self.differenceOn = False
         self.overlayTag = "OverlayItems"
-        self.widthStart = (0, 0)
-        self.widthEnd = (0, 0)
+        self.settingWidth = True
+        self.settingHeight = False
+        self.width = {'start': Coord(), 'end': Coord()}
+        self.height = {'start1': Coord(), 'end1': Coord(), 'start2': Coord(), 'end2': Coord()}
+
+    def showAbout(self):
+        pass
+
+    def showHelp(self):
+        pass
 
     def loadSequence(self):
         path = filedialog.askopenfilename(title="Select image from image sequence...")
@@ -168,13 +210,12 @@ class Application(tkinter.Tk):
         self.currentSequence = None
         self.sequenceLoaded = False
         self.previewStart.delete(self.overlayTag)
-        self.widthStart = [0, 0]
-        self.widthEnd = [0, 0]
+        self.width = {'start': Coord(), 'end': Coord()}
+        self.height = {'start1': Coord(), 'end1': Coord(), 'start2': Coord(), 'end2': Coord()}
         self.previewStart.reset()
         self.previewEnd.reset()
         self.startSpin.reset()
         self.endSpin.reset()
-        self.widthSpin.reset()
 
     def setSavePath(self):
         path = filedialog.asksaveasfilename(title="Select save location...")
@@ -201,8 +242,6 @@ class Application(tkinter.Tk):
 
         self.startSpin.max(end)
         self.endSpin.min(start)
-
-        self.widthSpin.max(s.frameSize[0])
 
     def setStartPreview(self, frame):
         self.startImage = self.currentSequence.image(frame)
@@ -251,9 +290,9 @@ class Application(tkinter.Tk):
         if w == self.previewStart or w == self.previewEnd:
             center = (event.x_root - w.winfo_rootx(), event.y_root - w.winfo_rooty())
             if event.delta < 0:
-                self.adjustZoom("in", center)
-            else:
                 self.adjustZoom("out", center)
+            else:
+                self.adjustZoom("in", center)
 
     def previewsZoomIn(self):
         self.adjustZoom("in")
@@ -277,8 +316,9 @@ class Application(tkinter.Tk):
     def previewsResetZoom(self):
         self.previewStart.resetZoom()
         self.previewEnd.resetZoom()
+        self.drawOverlay()
 
-    def previewDragged(self, event):
+    def _previewDragged(self, event):
         if event.widget == self.previewStart:
             self.previewEnd.moveImage(event.x, event.y)
         else:
@@ -305,27 +345,72 @@ class Application(tkinter.Tk):
                 self.previewStart.setImage(self.startImage)
                 self.differenceOn = False
 
-    def setWidth(self, event):
+    def activateSetWidth(self):
+        self.widthSetButton.configure(image=self.activePic)
+        self.heightSetButton.configure(image=self.unactivePic)
+        self.settingWidth = True
+        self.settingHeight = False
+
+    def activateSetHeight(self):
+        self.widthSetButton.configure(image=self.unactivePic)
+        self.heightSetButton.configure(image=self.activePic)
+        self.settingWidth = False
+        self.settingHeight = True
+
+    def _startPreviewClicked(self, event):
         if self.sequenceLoaded and (event.num == 1 or event.num == 3):
             x, y = self.previewStart.screenToWorld((event.x, event.y))
-            if event.num == 1:
-                self.widthStart = x, y
-            else:
-                self.widthEnd = x, y
-            self.drawOverlay()
+            if self.settingWidth:
+                self._setWidth(event.num, x, y)
+            elif self.settingHeight:
+                self._setHeight(event.num, x, y, event.state)
 
-            self.widthSpin.set(int(abs(self.widthStart[0] - self.widthEnd[0])))
+    def _setWidth(self, button, x, y):
+        if button == 1:
+            self.width['start'].set(x, y)
+        else:
+            self.width['end'].set(x, y)
+        self.drawOverlay()
+
+    def _setHeight(self, button, x, y, mod):
+        shift = 0x0001
+        if button == 1:
+            if mod & shift == shift:
+                self.height['start2'].set(x, y)
+            else:
+                self.height['start1'].set(x, y)
+        else:
+            if mod & shift == shift:
+                self.height['end2'].set(x, y)
+            else:
+                self.height['end1'].set(x, y)
+        self.drawOverlay()
 
     def drawOverlay(self):
         prev = self.previewStart
-        x, y = prev.worldToScreen(self.widthStart)  # Width line and dot start point
-        x2, y2 = prev.worldToScreen(self.widthEnd)  # Width line and dot end point
+
+        # Draw the width line and center line
+        x, y = prev.worldToScreen(self.width['start'].get())  # Width line and dot start point
+        x2, y2 = prev.worldToScreen(self.width['end'].get())  # Width line and dot end point
         x3 = (x + x2) / 2  # Rotation center line x
         __, y3 = prev.worldToScreen((0, 0))  # Rotation center line top y
         __, y4 = prev.worldToScreen(prev.getImage().size)  # Rotation center line bottom y
         prev.delete(self.overlayTag)
         prev.create_line(x3, y3, x3, y4, tags=self.overlayTag, fill="blue")
         prev.create_line(x, y, x2, y2, tags=self.overlayTag, fill="red")
+        prev.create_oval(x - 2, y - 2, x + 3, y + 3, tags=self.overlayTag, fill="green")
+        prev.create_oval(x2 - 2, y2 - 2, x2 + 3, y2 + 3, tags=self.overlayTag, fill="green")
+
+        # Draw the height lines
+        x, y = prev.worldToScreen(self.height['start1'].get())
+        x2, y2 = prev.worldToScreen(self.height['end1'].get())
+        prev.create_line(x, y, x2, y2, tags=self.overlayTag, fill="violet")
+        prev.create_oval(x - 2, y - 2, x + 3, y + 3, tags=self.overlayTag, fill="green")
+        prev.create_oval(x2 - 2, y2 - 2, x2 + 3, y2 + 3, tags=self.overlayTag, fill="green")
+
+        x, y = prev.worldToScreen(self.height['start2'].get())
+        x2, y2 = prev.worldToScreen(self.height['end2'].get())
+        prev.create_line(x, y, x2, y2, tags=self.overlayTag, fill="cyan")
         prev.create_oval(x - 2, y - 2, x + 3, y + 3, tags=self.overlayTag, fill="green")
         prev.create_oval(x2 - 2, y2 - 2, x2 + 3, y2 + 3, tags=self.overlayTag, fill="green")
 
@@ -337,13 +422,21 @@ class Application(tkinter.Tk):
             end = self.endSpin.get()
 
             s = self.currentSequence
-            rotationCenter = int((self.widthStart[0] + self.widthEnd[0]) / 2)
+            rotationCenter = int((self.width['start'].x + self.width['end'].x) / 2)
             height = s.frameSize[1]
 
             frameCount = end - start
             self.status.setProgressMax(frameCount)
-            crossSection = abs(self.widthStart[0] - self.widthEnd[0])
-            idealWidth = crossSection * math.pi
+
+            h = self.height
+            len1 = abs(h['start1'].y - h['end1'].y)
+            len2 = abs(h['start2'].y - h['end2'].y)
+            if len1 > len2:
+                adjustmentRatio = len1/len2
+            else:
+                adjustmentRatio = len2/len1
+            crossSection = abs(self.width['start'].x - self.width['end'].x)
+            idealWidth = crossSection * math.pi * adjustmentRatio
             arcLen = (1.0 / frameCount) * idealWidth
             stripWidth = int(round(arcLen))
             width = stripWidth * frameCount
@@ -377,5 +470,6 @@ class Application(tkinter.Tk):
 
 if __name__ == '__main__':
     RESOURCE_DIR = "resources"
+    __version__ = ""
     app = Application()
     app.mainloop()
