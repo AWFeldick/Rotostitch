@@ -72,9 +72,9 @@ class Application(tkinter.Tk):
         self.previewEnd = ZoomImage(imgFrame, width=200, height=200, borderwidth=2, relief=Tkc.RIDGE)
         self.previewEnd.grid(row=0, column=2, sticky=Tkc.NSEW)
 
-        self.previewStart.bind("<Button>", self.setWidth)
-        self.previewStart.bind("<<Dragged>>", self.previewDragged)
-        self.previewEnd.bind("<<Dragged>>", self.previewDragged)
+        self.previewStart.bind("<Button>", self._startPreviewClicked)
+        self.previewStart.bind("<<Dragged>>", self._previewDragged)
+        self.previewEnd.bind("<<Dragged>>", self._previewDragged)
 
         # Binding just the previews to the MouseWheel event should work but doesn't.
         # The workaround is to bind everything to the mousewheel event 
@@ -118,10 +118,18 @@ class Application(tkinter.Tk):
         self.endSpin.pack()
         self.endSpin.changedCallback = self.updateEndPreview
 
+        widthHeightFrame = Frame(settingsFrame)
+        widthHeightFrame.grid(row=0, column=1, columnspan=2, sticky=Tkc.E+Tkc.W)
+
         widthLabel = Label(settingsFrame, text="Width:")
         widthLabel.grid(row=0, column=0, sticky=Tkc.W)
-        self.widthSpin = Spinbox(settingsFrame)
-        self.widthSpin.grid(row=0, column=1, sticky=Tkc.W)
+        widthSetButton = Button(widthHeightFrame, text="Set", command=self.activateSetWidth)
+        widthSetButton.grid(row=0, column=1, sticky=Tkc.W)
+
+        heightLabel = Label(widthHeightFrame, text="Height:")
+        heightLabel.grid(row=0, column=2, padx=10, sticky=Tkc.E)
+        heightSetButton = Button(widthHeightFrame, text="Set", command=self.activateSetHeight)
+        heightSetButton.grid(row=0, column=3, sticky=Tkc.W)
 
         rotationLabel = Label(settingsFrame, text="Rotation:")
         rotationLabel.grid(row=1, column=0, sticky=Tkc.W)
@@ -202,8 +210,6 @@ class Application(tkinter.Tk):
         self.startSpin.max(end)
         self.endSpin.min(start)
 
-        self.widthSpin.max(s.frameSize[0])
-
     def setStartPreview(self, frame):
         self.startImage = self.currentSequence.image(frame)
         if self.startImage:
@@ -278,7 +284,7 @@ class Application(tkinter.Tk):
         self.previewStart.resetZoom()
         self.previewEnd.resetZoom()
 
-    def previewDragged(self, event):
+    def _previewDragged(self, event):
         if event.widget == self.previewStart:
             self.previewEnd.moveImage(event.x, event.y)
         else:
@@ -305,7 +311,13 @@ class Application(tkinter.Tk):
                 self.previewStart.setImage(self.startImage)
                 self.differenceOn = False
 
-    def setWidth(self, event):
+    def activateSetWidth(self):
+        print("Time to set the width.")
+
+    def activateSetHeight(self):
+        print("Time to set the height.")
+
+    def _startPreviewClicked(self, event):
         if self.sequenceLoaded and (event.num == 1 or event.num == 3):
             x, y = self.previewStart.screenToWorld((event.x, event.y))
             if event.num == 1:
@@ -313,8 +325,6 @@ class Application(tkinter.Tk):
             else:
                 self.widthEnd = x, y
             self.drawOverlay()
-
-            self.widthSpin.set(int(abs(self.widthStart[0] - self.widthEnd[0])))
 
     def drawOverlay(self):
         prev = self.previewStart
