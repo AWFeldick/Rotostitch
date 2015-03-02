@@ -422,13 +422,21 @@ class Application(tkinter.Tk):
             end = self.endSpin.get()
 
             s = self.currentSequence
-            rotationCenter = int((self.widthStart[0] + self.widthEnd[0]) / 2)
+            rotationCenter = int((self.width['start'].x + self.width['end'].x) / 2)
             height = s.frameSize[1]
 
             frameCount = end - start
             self.status.setProgressMax(frameCount)
-            crossSection = abs(self.widthStart[0] - self.widthEnd[0])
-            idealWidth = crossSection * math.pi
+
+            h = self.height
+            len1 = abs(h['start1'].y - h['end1'].y)
+            len2 = abs(h['start2'].y - h['end2'].y)
+            if len1 > len2:
+                adjustmentRatio = len1/len2
+            else:
+                adjustmentRatio = len2/len1
+            crossSection = abs(self.width['start'].x - self.width['end'].x)
+            idealWidth = crossSection * math.pi * adjustmentRatio
             arcLen = (1.0 / frameCount) * idealWidth
             stripWidth = int(round(arcLen))
             width = stripWidth * frameCount
